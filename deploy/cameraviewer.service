@@ -1,0 +1,30 @@
+# systemd unit for running Camera Viewer as a service on Linux.
+# Install steps are in README.md ("Running on a Linux server").
+[Unit]
+Description=Camera Viewer (web viewer for Hikvision-compatible NVRs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=cameraviewer
+Group=cameraviewer
+WorkingDirectory=/opt/cameraviewer
+ExecStart=/opt/cameraviewer/CameraViewer.Api
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=Storage__DataPath=/var/lib/cameraviewer
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+# Stopping or crashing the service also stops every ffmpeg it started, so no stream keeps the NVR busy.
+KillMode=control-group
+
+# Hardening: the app only needs to write its data folder (and its private /tmp for live video segments).
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/cameraviewer
+
+[Install]
+WantedBy=multi-user.target
