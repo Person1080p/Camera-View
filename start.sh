@@ -12,4 +12,14 @@ if [[ "${1:-}" == "--rebuild" || ! -f "$root/server/CameraViewer.Api/wwwroot/ind
   npm run build
 fi
 
+# The embedded Tailscale helper is optional; build it when Go is available and it's missing.
+case "$(uname -m)" in aarch64|arm64) rid=linux-arm64 ;; *) rid=linux-x64 ;; esac
+if [[ ! -x "$root/tailscale/bin/$rid/tsproxy" ]]; then
+  if command -v go > /dev/null; then
+    bash "$root/tailscale/build.sh"
+  else
+    echo "warning: Go is not installed, so the embedded Tailscale helper was not built; Tailscale devices will not work." >&2
+  fi
+fi
+
 exec dotnet run --project "$root/server/CameraViewer.Api" --launch-profile http

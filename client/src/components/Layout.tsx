@@ -23,6 +23,7 @@ export function Layout() {
               <NavLink to="/admin/nvr">NVR Admin</NavLink>
               <NavLink to="/admin/devices">Devices</NavLink>
               <NavLink to="/admin/users">Users</NavLink>
+              <NavLink to="/admin/tailscale">Tailscale</NavLink>
             </>
           )}
         </nav>

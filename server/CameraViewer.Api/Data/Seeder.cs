@@ -15,6 +15,33 @@ public static class Seeder
         public int RtspPort { get; set; } = 554;
         public string Username { get; set; } = "admin";
         public string Password { get; set; } = "";
+        public bool UseTailscale { get; set; }
+    }
+
+    /// <summary>
+    /// EnsureCreated only builds a fresh database, so columns added in later versions are added here to
+    /// existing ones. Each entry is idempotent.
+    /// </summary>
+    private static readonly (string Table, string Column, string Definition)[] AddedColumns =
+    [
+        ("Devices", "UseTailscale", "INTEGER NOT NULL DEFAULT 0"),
+    ];
+
+    private static async Task UpgradeSchemaAsync(AppDbContext db, ILogger log)
+    {
+        var connection = db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        foreach (var (table, column, definition) in AddedColumns)
+        {
+            await using var check = connection.CreateCommand();
+            check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}'";
+            if (Convert.ToInt64(await check.ExecuteScalarAsync()) > 0) continue;
+
+            await using var alter = connection.CreateCommand();
+            alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition}";
+            await alter.ExecuteNonQueryAsync();
+            log.LogInformation("Upgraded database: added {Table}.{Column}", table, column);
+        }
     }
 
     /// <summary>
@@ -26,6 +53,7 @@ public static class Seeder
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.EnsureCreatedAsync();
+        await UpgradeSchemaAsync(db, log);
 
         if (!await db.Users.AnyAsync())
         {
@@ -53,6 +81,7 @@ public static class Seeder
                     HttpPort = d.HttpPort,
                     RtspPort = d.RtspPort,
                     Username = d.Username,
+                    UseTailscale = d.UseTailscale,
                     ProtectedPassword = secrets.Protect(d.Password),
                 });
                 log.LogInformation("Added device '{Name}' ({Host}) from configuration", d.Name, d.Host);

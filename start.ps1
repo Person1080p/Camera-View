@@ -21,4 +21,15 @@ if ($Rebuild -or -not (Test-Path $wwwroot)) {
     finally { Pop-Location }
 }
 
+# The embedded Tailscale helper is optional; build it when Go is available and it's missing.
+$tsproxy = Join-Path $root 'tailscale\bin\win-x64\tsproxy.exe'
+if (-not (Test-Path $tsproxy)) {
+    if ((Get-Command go -ErrorAction SilentlyContinue) -or (Test-Path 'C:\Program Files\Go\bin\go.exe')) {
+        & (Join-Path $root 'tailscale\build.ps1')
+    }
+    else {
+        Write-Warning 'Go is not installed, so the embedded Tailscale helper was not built. Tailscale devices will not work (winget install GoLang.Go).'
+    }
+}
+
 dotnet run --project (Join-Path $root 'server\CameraViewer.Api') --launch-profile http

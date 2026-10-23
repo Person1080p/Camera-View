@@ -12,9 +12,10 @@ interface Form {
   username: string;
   password: string;
   playbackLimit: string;
+  useTailscale: boolean;
 }
 
-const blank: Form = { id: null, name: '', host: '', httpPort: '80', rtspPort: '554', username: 'admin', password: '', playbackLimit: '1' };
+const blank: Form = { id: null, name: '', host: '', httpPort: '80', rtspPort: '554', username: 'admin', password: '', playbackLimit: '1', useTailscale: false };
 
 export function DevicesPage() {
   const devices = useDevices();
@@ -33,12 +34,13 @@ export function DevicesPage() {
       username: d.username ?? '',
       password: '',
       playbackLimit: String(d.playbackLimit),
+      useTailscale: d.useTailscale,
     });
     setError(null);
     setTestResult(null);
   };
 
-  const field = (key: keyof Form) => ({
+  const field = (key: Exclude<keyof Form, 'useTailscale'>) => ({
     value: String(form?.[key] ?? ''),
     onChange: (e: { target: { value: string } }) => setForm((f) => (f ? { ...f, [key]: e.target.value } : f)),
   });
@@ -55,6 +57,7 @@ export function DevicesPage() {
         httpPort: Number(form.httpPort),
         username: form.username,
         password: form.password || null,
+        useTailscale: form.useTailscale,
       });
       setTestResult(`Connected: ${r.info.model || r.info.name} (firmware ${r.info.firmware}), ${r.channelCount} channel${r.channelCount === 1 ? '' : 's'}.`);
     } catch (e) {
@@ -77,6 +80,7 @@ export function DevicesPage() {
       username: form.username,
       password: form.password || null,
       playbackLimit: Number(form.playbackLimit),
+      useTailscale: form.useTailscale,
     };
     try {
       if (form.id) await api.put(`/api/devices/${form.id}`, body);
@@ -132,6 +136,7 @@ export function DevicesPage() {
                   <td>{d.name}</td>
                   <td className="mono small">
                     {d.username}@{d.host} · http {d.httpPort} · rtsp {d.rtspPort}
+                    {d.useTailscale && <span className="badge small-badge badge-running">via Tailscale</span>}
                   </td>
                   <td>{d.playbackLimit}</td>
                   <td className="actions">
@@ -185,6 +190,14 @@ export function DevicesPage() {
               Password {form.id && <span className="muted small">(leave blank to keep the current one)</span>}
               <input type="password" {...field('password')} autoComplete="new-password" required={!form.id} />
             </label>
+            <label className="check">
+              <input type="checkbox" checked={form.useTailscale} onChange={(e) => setForm({ ...form, useTailscale: e.target.checked })} />
+              Connect through Tailscale
+            </label>
+            <span className="muted small">
+              For NVRs at other sites: the host is the NVR's address on that site's LAN (shared as a subnet route) or a tailnet name/IP. Needs
+              Tailscale turned on and signed in on the <Link to="/admin/tailscale">Tailscale</Link> page.
+            </span>
             <label>
               Simultaneous playback streams
               <input type="number" min={1} max={16} {...field('playbackLimit')} required />

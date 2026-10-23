@@ -19,7 +19,7 @@ public class IsapiException(string message) : AppException(message, StatusCodes.
 /// Minimal Hikvision ISAPI client (also works with the many OEM rebrands of Hikvision NVRs).
 /// Authentication is HTTP digest, which SocketsHttpHandler negotiates automatically.
 /// </summary>
-public class IsapiClient
+public class IsapiClient(TailscaleService tailscale)
 {
     private readonly ConcurrentDictionary<string, HttpClient> _clients = new();
 
@@ -149,33 +149,48 @@ public class IsapiClient
     private HttpClient Client(DeviceConnection c)
     {
         // Keyed on the connection details so that editing a device transparently yields a fresh client.
-        var key = $"{c.Host}:{c.HttpPort}\n{c.Username}\n{c.Password}";
-        return _clients.GetOrAdd(key, _ => new HttpClient(new SocketsHttpHandler
+        var key = $"{c.Host}:{c.HttpPort}\n{c.Username}\n{c.Password}\n{c.ViaTailscale}";
+        return _clients.GetOrAdd(key, _ =>
         {
-            Credentials = new NetworkCredential(c.Username, c.Password),
-            PreAuthenticate = true,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-        })
-        {
-            BaseAddress = new Uri($"http://{c.Host}:{c.HttpPort}"),
-            Timeout = TimeSpan.FromSeconds(20),
+            var handler = new SocketsHttpHandler
+            {
+                Credentials = new NetworkCredential(c.Username, c.Password),
+                PreAuthenticate = true,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                // Remote sites are often on LTE; the first connection through the tailnet can take a while.
+                ConnectTimeout = TimeSpan.FromSeconds(c.ViaTailscale ? 20 : 5),
+            };
+            if (c.ViaTailscale)
+            {
+                handler.UseProxy = false;
+                handler.ConnectCallback = (ctx, ct) => new ValueTask<Stream>(tailscale.ConnectAsync(ctx.DnsEndPoint.Host, ctx.DnsEndPoint.Port, ct));
+            }
+            return new HttpClient(handler)
+            {
+                BaseAddress = new Uri($"http://{c.Host}:{c.HttpPort}"),
+                Timeout = TimeSpan.FromSeconds(c.ViaTailscale ? 40 : 20),
+            };
         });
     }
 
     private async Task<HttpResponseMessage> SendAsync(DeviceConnection c, HttpMethod method, string path, HttpContent? content, CancellationToken ct)
     {
+        var via = c.ViaTailscale ? " through Tailscale" : "";
         try
         {
             return await Client(c).SendAsync(new HttpRequestMessage(method, path) { Content = content }, ct);
         }
+        catch (HttpRequestException ex) when (ex.InnerException is AppException inner)
+        {
+            throw inner; // e.g. "Tailscale is turned off"
+        }
         catch (HttpRequestException ex)
         {
-            throw new IsapiException($"Cannot reach {c.Host}:{c.HttpPort} ({ex.Message})");
+            throw new IsapiException($"Cannot reach {c.Host}:{c.HttpPort}{via} ({ex.InnerException?.Message ?? ex.Message})");
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new IsapiException($"Timed out contacting {c.Host}:{c.HttpPort}");
+            throw new IsapiException($"Timed out contacting {c.Host}:{c.HttpPort}{via}");
         }
     }
 

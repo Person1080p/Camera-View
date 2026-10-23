@@ -36,6 +36,9 @@ public class Device
     /// <summary>How many recording streams (playback + exports) the device serves at once. Many NVRs allow only one.</summary>
     public int PlaybackLimit { get; set; } = 1;
 
+    /// <summary>Reach the device through the app's embedded Tailscale node (e.g. an NVR behind a subnet router).</summary>
+    public bool UseTailscale { get; set; }
+
     /// <summary>Device password encrypted with ASP.NET Data Protection.</summary>
     public string ProtectedPassword { get; set; } = "";
 

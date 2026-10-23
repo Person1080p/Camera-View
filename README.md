@@ -10,6 +10,8 @@ browser with no plugins.
 - **Playback**: a 24-hour timeline of recordings with zoom. Click the bar to play from that time, or jump by ±10s/±1m.
 - **Export**: mark in/out on the timeline to queue an MP4 export, then download it from the Exports page.
 - **NVR administration** (admins only): manage the recorders themselves. See [NVR administration](#nvr-administration).
+- **Embedded Tailscale**: reach NVRs at other sites over your tailnet without installing Tailscale on the server. See
+  [Remote sites over Tailscale](#remote-sites-over-tailscale).
 
 ## Requirements
 
@@ -20,6 +22,7 @@ The app runs on **Windows and Linux**.
 | .NET SDK | 8.0 | https://dotnet.microsoft.com/download | `sudo apt install dotnet-sdk-8.0` |
 | Node.js | 18+ (only to build the UI) | `winget install OpenJS.NodeJS.LTS` | `sudo apt install nodejs npm` |
 | ffmpeg | any recent, with libx264 | `winget install Gyan.FFmpeg` | `sudo apt install ffmpeg` |
+| Go | 1.23+ (only to build the Tailscale helper) | `winget install GoLang.Go` | https://go.dev/dl |
 
 ffmpeg is found on `PATH` (and, on Windows, in winget's install folder). To point at a specific copy, set
 `Ffmpeg:Path` in `server/CameraViewer.Api/appsettings.json`.
@@ -47,8 +50,9 @@ For a permanent install, publish a self-contained build and run it under systemd
 on the server; it only needs ffmpeg.
 
 ```bash
-# On a build machine with the .NET SDK and Node.js (Windows or Linux):
+# On a build machine with the .NET SDK, Node.js and Go (Windows or Linux):
 cd client && npm install && npm run build && cd ..
+./tailscale/build.sh                 # or tailscale\build.ps1 on Windows; skip if you don't use Tailscale
 dotnet publish server/CameraViewer.Api -c Release -r linux-x64 --self-contained -o publish
 #   (use -r linux-arm64 for a Raspberry Pi 4/5 or other 64-bit ARM board)
 
@@ -115,6 +119,44 @@ Browser (React + hls.js)  ──HTTP──>  ASP.NET Core  ──ISAPI (HTTP, di
 - The iVMS **SDK port 8000 is not used**.
 - Live streams are shared, so ten people watching the same camera use one connection to the NVR.
 - Streams stop automatically about 30–45 seconds after the last viewer leaves.
+
+## Remote sites over Tailscale
+
+Camera Viewer can join your tailnet as its own machine, so it reaches NVRs at other sites without Tailscale being
+installed on the server. This works on Windows and Linux and needs no admin rights or network adapter. See
+[docs/remote-sites.md](docs/remote-sites.md) for how the sites' routers are set up.
+
+1. **Tailscale** page → tick *Run Camera Viewer's Tailscale node* → Save.
+2. Click **Open Tailscale sign-in** and log in with the account that owns the sites' routers, or paste an auth key.
+   The page shows *Connected* and lists the tailnet's machines and the subnets each one shares.
+3. **Devices** page → add the site's NVR with its LAN address (e.g. 192.168.20.101) and tick **Connect through
+   Tailscale**. Press *Test connection*, then save.
+
+How it works:
+
+- **The node.** `tailscale/tsproxy` is a small Go program built on Tailscale's embeddable library, tsnet. The server
+  starts it, keeps it running, and stops it when the server stops.
+- **The node's identity.** Its keys live in `<data folder>/tailscale-node/`, readable only by the account running the server (and, on
+  Windows, SYSTEM and Administrators), so it stays signed in
+  across restarts.
+- **Web requests** to Tailscale devices go through the node's loopback SOCKS5 proxy.
+- **Video** goes through a loopback port forwarder for each device, because ffmpeg can't use a SOCKS proxy for RTSP.
+- **Subnet routes are accepted by default**, so NVRs behind a site router are reachable at their LAN addresses. The
+  route must be approved in the Tailscale admin console.
+- **Addresses the tailnet doesn't route** fall back to the server's normal network. So ticking the option on a local
+  device does no harm.
+
+Things to know:
+
+- **Remote sites are slow to connect.** Over a site's LTE uplink the first connection can take several seconds. The
+  app allows 20 s to connect to Tailscale devices, versus 5 s for local ones.
+- **One NVR per subnet across sites.** Two sites sharing the same subnet (for example both 192.168.20.0/24) can't both
+  be reached; renumber one site's LAN first.
+- **The tailnet's access rules apply** to this machine like any other.
+- **Not tested end to end yet.** The app's side (status, sign-in, and video and API traffic through the proxy and
+  forwarder) was tested against a local NVR with a stand-in for the Tailscale node. The real node reaches the sign-in
+  step, but signing it in and reaching a remote site's NVR haven't been done yet, because that needs your Tailscale
+  account.
 
 ## NVR administration
 
@@ -204,7 +246,8 @@ Not yet tried, because doing so would interrupt cameras or recording:
 | `Exports:MaxMinutes` | 120 | Longest allowed export |
 | `Exports:MaxConcurrent` | 2 | Export workers (exports on the same device still go one at a time) |
 | `Seed:AdminUsername` / `Seed:AdminPassword` | admin / admin | First-run admin account |
-| `Seed:Devices` | `[]` | Devices to add on first run (best kept in `appsettings.Local.json`) |
+| `Seed:Devices` | `[]` | Devices to add on first run (best kept in `appsettings.Local.json`); each may set `"UseTailscale": true` |
+| `Tailscale:HelperPath` | *(auto)* | Explicit path to the tsproxy helper; normally found next to the server binaries |
 
 ## Project layout
 
@@ -219,9 +262,11 @@ server/CameraViewer.Api/
     ExportService.cs      Background MP4 export queue with progress
     PlaybackSlots.cs      Per-device limit on simultaneous recording streams
     Ffmpeg.cs             ffmpeg discovery, process wrapper (Windows job object / Linux orphan sweep), RTSP URLs
+    Tailscale.cs          embedded Tailscale: helper supervision, LocalAPI, SOCKS5 client, RTSP forwarders
 client/src/
   pages/                  Live, Playback, Exports, Devices, Users, Login, Account, NvrAdmin (+ nvr/ tabs)
   components/             HlsPlayer, LiveTile, Timeline, Layout
 deploy/cameraviewer.service   systemd unit for Linux servers
 start.ps1 / start.sh          build-and-run helpers for Windows / Linux
+tailscale/tsproxy/            Go source of the embedded Tailscale helper (build.ps1 / build.sh build it into tailscale/bin/)
 ```

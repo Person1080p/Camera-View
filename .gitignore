@@ -12,3 +12,6 @@ server/CameraViewer.Api/App_Data/
 
 # Machine-specific settings, including device passwords
 server/CameraViewer.Api/appsettings.Local.json
+
+# Embedded Tailscale helper binaries (built by tailscale/build.ps1 / build.sh)
+tailscale/bin/

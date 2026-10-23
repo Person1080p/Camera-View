@@ -42,6 +42,8 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
 builder.Services.AddSingleton<DeviceSecrets>();
+builder.Services.AddSingleton<TailscaleService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddSingleton<IsapiClient>();
 builder.Services.AddSingleton<NvrAdmin>();
 builder.Services.AddSingleton<FfmpegLocator>();
@@ -122,6 +124,7 @@ app.MapDeviceEndpoints();
 app.MapStreamEndpoints();
 app.MapExportEndpoints();
 app.MapNvrAdminEndpoints();
+app.MapTailscaleEndpoints();
 app.Map("/api/{**rest}", () => Results.NotFound(new { error = "Not found" }));
 app.MapFallbackToFile("index.html").AllowAnonymous();
 

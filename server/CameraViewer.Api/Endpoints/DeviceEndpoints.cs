@@ -8,18 +8,18 @@ using Microsoft.EntityFrameworkCore;
 namespace CameraViewer.Api.Endpoints;
 
 /// <summary>Connection details are only included for admins.</summary>
-public record DeviceDto(int Id, string Name, int PlaybackLimit, string? Host, int? HttpPort, int? RtspPort, string? Username)
+public record DeviceDto(int Id, string Name, int PlaybackLimit, bool UseTailscale, string? Host, int? HttpPort, int? RtspPort, string? Username)
 {
     public static DeviceDto For(Device d, bool admin) => admin
-        ? new(d.Id, d.Name, d.PlaybackLimit, d.Host, d.HttpPort, d.RtspPort, d.Username)
-        : new(d.Id, d.Name, d.PlaybackLimit, null, null, null, null);
+        ? new(d.Id, d.Name, d.PlaybackLimit, d.UseTailscale, d.Host, d.HttpPort, d.RtspPort, d.Username)
+        : new(d.Id, d.Name, d.PlaybackLimit, d.UseTailscale, null, null, null, null);
 }
 
 /// <summary>Password may be left empty on update to keep the stored one.</summary>
-public record SaveDeviceRequest(string Name, string Host, int HttpPort, int RtspPort, string Username, string? Password, int? PlaybackLimit);
+public record SaveDeviceRequest(string Name, string Host, int HttpPort, int RtspPort, string Username, string? Password, int? PlaybackLimit, bool? UseTailscale);
 
 /// <summary>Id lets the edit form test with the stored password when the password field is left blank.</summary>
-public record TestDeviceRequest(int? Id, string Host, int HttpPort, string Username, string? Password);
+public record TestDeviceRequest(int? Id, string Host, int HttpPort, string Username, string? Password, bool? UseTailscale);
 
 public static class DeviceEndpoints
 {
@@ -75,7 +75,7 @@ public static class DeviceEndpoints
                 var existing = await db.Devices.FindAsync([existingId], ct);
                 if (existing is not null) password = secrets.Connect(existing).Password;
             }
-            var conn = new DeviceConnection(0, "", req.Host.Trim(), req.HttpPort, 554, req.Username, password ?? "");
+            var conn = new DeviceConnection(0, "", req.Host.Trim(), req.HttpPort, 554, req.Username, password ?? "", ViaTailscale: req.UseTailscale == true);
             var info = await isapi.GetDeviceInfoAsync(conn, ct);
             var channels = await isapi.GetChannelsAsync(conn, ct);
             return Results.Ok(new { info, channelCount = channels.Count });
@@ -133,5 +133,6 @@ public static class DeviceEndpoints
         d.RtspPort = req.RtspPort;
         d.Username = req.Username.Trim();
         d.PlaybackLimit = req.PlaybackLimit ?? d.PlaybackLimit;
+        d.UseTailscale = req.UseTailscale ?? d.UseTailscale;
     }
 }

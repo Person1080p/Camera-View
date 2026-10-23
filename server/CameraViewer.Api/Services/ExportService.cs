@@ -13,7 +13,7 @@ namespace CameraViewer.Api.Services;
 /// waiting for a free playback slot on its device.
 /// </summary>
 public class ExportService(
-    IServiceScopeFactory scopes, DeviceSecrets secrets, FfmpegLocator ffmpeg, PlaybackSlots slots, AppPaths paths,
+    IServiceScopeFactory scopes, DeviceSecrets secrets, FfmpegLocator ffmpeg, PlaybackSlots slots, TailscaleService tailscale, AppPaths paths,
     IConfiguration config, ILogger<ExportService> log) : BackgroundService
 {
     private const int MaxBusyRetries = 20;
@@ -196,7 +196,7 @@ public class ExportService(
         [
             "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1",
             "-rtsp_transport", "tcp", "-timeout", "10000000",
-            "-i", RtspUrls.Playback(conn, job.Channel, job.Start, job.End),
+            "-i", RtspUrls.Playback(tailscale.ForRtsp(conn), job.Channel, job.Start, job.End),
             "-t", seconds.ToString(CultureInfo.InvariantCulture),
             "-map", "0:v:0", "-an", .. codec,
             "-movflags", "+faststart", "-f", "mp4", "-y", part,

@@ -44,7 +44,8 @@ public sealed class StreamSession(string id, StreamKind kind, string? shareKey, 
     }
 }
 
-public class StreamManager(AppPaths paths, FfmpegLocator ffmpeg, PlaybackSlots slots, IConfiguration config, ILogger<StreamManager> log) : BackgroundService
+public class StreamManager(AppPaths paths, FfmpegLocator ffmpeg, PlaybackSlots slots, TailscaleService tailscale,
+    IConfiguration config, ILogger<StreamManager> log) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, StreamSession> _sessions = new();
     private readonly object _startLock = new();
@@ -78,7 +79,7 @@ public class StreamManager(AppPaths paths, FfmpegLocator ffmpeg, PlaybackSlots s
             else
             {
                 if (existing is not null) Remove(existing);
-                var input = RtspUrls.Live(c, channel, sub: !hd);
+                var input = RtspUrls.Live(tailscale.ForRtsp(c), channel, sub: !hd);
                 session = Launch(StreamKind.Live, key, c.Id, userId, LiveIdle, dir =>
                 [
                     .. InputArgs, "-fflags", "nobuffer", "-i", input,
@@ -104,7 +105,7 @@ public class StreamManager(AppPaths paths, FfmpegLocator ffmpeg, PlaybackSlots s
         int userId, string username, CancellationToken ct)
     {
         var hours = config.GetValue("Streaming:PlaybackWindowHours", 3);
-        var input = RtspUrls.Playback(c, channel, start, start.AddHours(hours));
+        var input = RtspUrls.Playback(tailscale.ForRtsp(c), channel, start, start.AddHours(hours));
         var (height, bitrate) = quality == "hd" ? (720, "2500k") : (480, "1200k");
 
         var replaced = false;

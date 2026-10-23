@@ -11,4 +11,21 @@
     <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.11" />
   </ItemGroup>
 
+  <!--
+    Embedded Tailscale helper, built by tailscale/build.ps1 (or build.sh) into tailscale/bin/<rid>/.
+    Plain builds copy every platform's helper; a publish for a specific runtime copies only its own.
+    Missing binaries are fine: Tailscale is then simply unavailable.
+  -->
+  <PropertyGroup>
+    <TsProxyDir>$(MSBuildThisFileDirectory)..\..\tailscale\bin\</TsProxyDir>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == ''">
+    <None Include="$(TsProxyDir)**\*" Link="tailscale\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <None Include="$(TsProxyDir)$(RuntimeIdentifier)\*" Link="tailscale\$(RuntimeIdentifier)\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

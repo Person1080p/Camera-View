@@ -12,6 +12,7 @@ export interface Device {
   id: number;
   name: string;
   playbackLimit: number;
+  useTailscale: boolean;
   // Connection details are only sent to admins.
   host?: string | null;
   httpPort?: number | null;
@@ -284,4 +285,31 @@ export interface CloudInfo {
   enabled: boolean;
   server: string;
   registered: boolean;
+}
+
+// ---------- embedded Tailscale ----------
+
+export interface TailnetPeer {
+  name: string;
+  dnsName: string | null;
+  addresses: string[];
+  online: boolean;
+  os: string | null;
+  routes: string[];
+}
+
+/** state: Unavailable, Disabled, Starting, NeedsLogin, NeedsMachineAuth, Running, Stopped or Error. */
+export interface TailscaleStatus {
+  available: boolean;
+  enabled: boolean;
+  hostname: string;
+  state: string;
+  authUrl: string | null;
+  dnsName: string | null;
+  addresses: string[];
+  tailnet: string | null;
+  acceptRoutes: boolean | null;
+  peers: TailnetPeer[];
+  health: string[];
+  error: string | null;
 }

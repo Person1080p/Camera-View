@@ -7,6 +7,7 @@ import { ExportsPage } from './pages/ExportsPage';
 import { LivePage } from './pages/LivePage';
 import { LoginPage } from './pages/LoginPage';
 import { NvrAdminPage } from './pages/NvrAdminPage';
+import { TailscalePage } from './pages/TailscalePage';
 import { PlaybackPage } from './pages/PlaybackPage';
 import { UsersPage } from './pages/UsersPage';
 
@@ -28,6 +29,7 @@ export default function App() {
         {admin && <Route path="/admin/devices" element={<DevicesPage />} />}
         {admin && <Route path="/admin/users" element={<UsersPage />} />}
         {admin && <Route path="/admin/nvr" element={<NvrAdminPage />} />}
+        {admin && <Route path="/admin/tailscale" element={<TailscalePage />} />}
         <Route path="*" element={<Navigate to="/live" replace />} />
       </Route>
     </Routes>
