@@ -15,3 +15,4 @@ server/CameraViewer.Api/appsettings.Local.json
 
 # Embedded Tailscale helper binaries (built by tailscale/build.ps1 / build.sh)
 tailscale/bin/
+docs/remote-sites.md

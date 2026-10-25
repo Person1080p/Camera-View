@@ -8,6 +8,21 @@ import { today } from '../time';
 
 const LAYOUTS = [1, 4, 9, 16];
 
+type Quality = 'sd' | 'hd';
+
+function QualityToggle({ value, onChange }: { value: string; onChange: (q: Quality) => void }) {
+  return (
+    <div className="seg-group" title="SD relays the camera's sub stream; HD converts the main stream (uses more server CPU and bandwidth per camera)">
+      <button className={value === 'sd' ? 'active' : ''} onClick={() => onChange('sd')}>
+        SD
+      </button>
+      <button className={value === 'hd' ? 'active' : ''} onClick={() => onChange('hd')}>
+        HD
+      </button>
+    </div>
+  );
+}
+
 export function LivePage() {
   const user = useUser();
   const navigate = useNavigate();
@@ -18,6 +33,7 @@ export function LivePage() {
   const [page, setPage] = useState(0);
   const [focus, setFocus] = useState<Channel | null>(null);
   const [focusQuality, setFocusQuality] = useStoredState('live.focusQuality', 'hd');
+  const [gridQuality, setGridQuality] = useStoredState('live.gridQuality', 'sd');
 
   const deviceList = devices.data ?? [];
   const deviceId = deviceList.find((d) => String(d.id) === storedDevice)?.id ?? deviceList[0]?.id ?? null;
@@ -93,21 +109,14 @@ export function LivePage() {
                 {focus.id}. {focus.name}
               </strong>
               <div className="spacer" />
-              <div className="seg-group" title="SD relays the camera's sub stream; HD converts the main stream (uses more server CPU)">
-                <button className={focusQuality === 'sd' ? 'active' : ''} onClick={() => setFocusQuality('sd')}>
-                  SD
-                </button>
-                <button className={focusQuality === 'hd' ? 'active' : ''} onClick={() => setFocusQuality('hd')}>
-                  HD
-                </button>
-              </div>
+              <QualityToggle value={focusQuality} onChange={setFocusQuality} />
               <a className="button" href={snapshotUrl(deviceId, focus.id, false)} target="_blank" rel="noreferrer">
                 Snapshot
               </a>
               <button onClick={() => navigate(`/playback?device=${deviceId}&channel=${focus.id}&date=${today()}`)}>Playback</button>
             </div>
             <div className="focus-view">
-              <LiveTile key={`${focus.id}-${focusQuality}`} deviceId={deviceId} channel={focus} quality={focusQuality as 'sd' | 'hd'} large />
+              <LiveTile key={`${focus.id}-${focusQuality}`} deviceId={deviceId} channel={focus} quality={focusQuality as Quality} large />
             </div>
           </>
         ) : (
@@ -120,6 +129,7 @@ export function LivePage() {
                   </button>
                 ))}
               </div>
+              <QualityToggle value={gridQuality} onChange={setGridQuality} />
               <div className="spacer" />
               {pages > 1 && (
                 <div className="pager">
@@ -138,7 +148,7 @@ export function LivePage() {
             {deviceId && (
               <div className="grid" style={{ gridTemplateColumns: `repeat(${Math.sqrt(perPage)}, minmax(0, 1fr))` }}>
                 {shown.map((c) => (
-                  <LiveTile key={`${deviceId}-${c.id}`} deviceId={deviceId} channel={c} quality="sd" onOpen={() => c.online && setFocus(c)} />
+                  <LiveTile key={`${deviceId}-${c.id}`} deviceId={deviceId} channel={c} quality={gridQuality as Quality} onOpen={() => c.online && setFocus(c)} />
                 ))}
               </div>
             )}

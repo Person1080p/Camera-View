@@ -46,7 +46,8 @@ public static class Seeder
 
     /// <summary>
     /// Creates the database, an initial admin (who must change the password on first login), and any
-    /// devices listed under Seed:Devices. Devices are only seeded into an empty device table.
+    /// devices listed under Seed:Devices whose host and HTTP port aren't registered yet. A configured device
+    /// that is deleted in the app comes back at the next start until it is removed from the configuration.
     /// </summary>
     public static async Task SeedAsync(IServiceProvider services, IConfiguration config, ILogger log)
     {
@@ -69,23 +70,23 @@ public static class Seeder
             log.LogWarning("Created initial admin account '{User}'; its password must be changed at first login", admin.Username);
         }
 
-        if (!await db.Devices.AnyAsync())
+        var registered = (await db.Devices.Select(d => new { d.Host, d.HttpPort }).ToListAsync())
+            .Select(d => (d.Host, d.HttpPort)).ToHashSet();
+        var secrets = scope.ServiceProvider.GetRequiredService<DeviceSecrets>();
+        foreach (var d in config.GetSection("Seed:Devices").Get<List<SeedDevice>>() ?? [])
         {
-            var secrets = scope.ServiceProvider.GetRequiredService<DeviceSecrets>();
-            foreach (var d in config.GetSection("Seed:Devices").Get<List<SeedDevice>>() ?? [])
+            if (!registered.Add((d.Host, d.HttpPort))) continue;
+            db.Devices.Add(new Device
             {
-                db.Devices.Add(new Device
-                {
-                    Name = d.Name,
-                    Host = d.Host,
-                    HttpPort = d.HttpPort,
-                    RtspPort = d.RtspPort,
-                    Username = d.Username,
-                    UseTailscale = d.UseTailscale,
-                    ProtectedPassword = secrets.Protect(d.Password),
-                });
-                log.LogInformation("Added device '{Name}' ({Host}) from configuration", d.Name, d.Host);
-            }
+                Name = d.Name,
+                Host = d.Host,
+                HttpPort = d.HttpPort,
+                RtspPort = d.RtspPort,
+                Username = d.Username,
+                UseTailscale = d.UseTailscale,
+                ProtectedPassword = secrets.Protect(d.Password),
+            });
+            log.LogInformation("Added device '{Name}' ({Host}) from configuration", d.Name, d.Host);
         }
 
         await db.SaveChangesAsync();

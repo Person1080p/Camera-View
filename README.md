@@ -151,7 +151,11 @@ Things to know:
 - **Remote sites are slow to connect.** Over a site's LTE uplink the first connection can take several seconds. The
   app allows 20 s to connect to Tailscale devices, versus 5 s for local ones.
 - **One NVR per subnet across sites.** Two sites sharing the same subnet (for example both 192.168.20.0/24) can't both
-  be reached; renumber one site's LAN first.
+  be reached as they are. Either renumber one site's LAN first, or:
+  - give that site's router a second subnet and advertise only that one
+  - map the NVR into it, so 192.168.21.138 on the tailnet reaches 192.168.20.138 on the LAN
+
+  See [docs/remote-sites.md](docs/remote-sites.md).
 - **The tailnet's access rules apply** to this machine like any other.
 - **Not tested end to end yet.** The app's side (status, sign-in, and video and API traffic through the proxy and
   forwarder) was tested against a local NVR with a stand-in for the Tailscale node. The real node reaches the sign-in
@@ -246,7 +250,7 @@ Not yet tried, because doing so would interrupt cameras or recording:
 | `Exports:MaxMinutes` | 120 | Longest allowed export |
 | `Exports:MaxConcurrent` | 2 | Export workers (exports on the same device still go one at a time) |
 | `Seed:AdminUsername` / `Seed:AdminPassword` | admin / admin | First-run admin account |
-| `Seed:Devices` | `[]` | Devices to add on first run (best kept in `appsettings.Local.json`); each may set `"UseTailscale": true` |
+| `Seed:Devices` | `[]` | Devices to add at start-up when their host and HTTP port aren't registered yet (best kept in `appsettings.Local.json`); each may set `"UseTailscale": true`. A configured device deleted in the app comes back at the next start. |
 | `Tailscale:HelperPath` | *(auto)* | Explicit path to the tsproxy helper; normally found next to the server binaries |
 
 ## Project layout
