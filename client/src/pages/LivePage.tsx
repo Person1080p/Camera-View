@@ -3,23 +3,37 @@ import { Link, useNavigate } from 'react-router-dom';
 import { snapshotUrl, type Channel } from '../api';
 import { useUser } from '../auth';
 import { LiveTile } from '../components/LiveTile';
+import { SnapshotTile } from '../components/SnapshotTile';
 import { useChannels, useDevices, useStoredState } from '../hooks';
 import { today } from '../time';
 
 const LAYOUTS = [1, 4, 9, 16];
 
-type Quality = 'sd' | 'hd';
+type ViewMode = 'sd' | 'hd' | 'stills';
 
-function QualityToggle({ value, onChange }: { value: string; onChange: (q: Quality) => void }) {
+const VIEW_MODES: { mode: ViewMode; label: string; title: string }[] = [
+  { mode: 'sd', label: 'SD', title: "Video from the camera's sub stream, relayed as is" },
+  { mode: 'hd', label: 'HD', title: 'Video from the main stream, converted by the server (more CPU and bandwidth per camera)' },
+  { mode: 'stills', label: 'Stills', title: 'A still picture per camera, updated only when you press Refresh. For slow connections' },
+];
+
+function ViewModeToggle({ value, onChange }: { value: string; onChange: (m: ViewMode) => void }) {
   return (
-    <div className="seg-group" title="SD relays the camera's sub stream; HD converts the main stream (uses more server CPU and bandwidth per camera)">
-      <button className={value === 'sd' ? 'active' : ''} onClick={() => onChange('sd')}>
-        SD
-      </button>
-      <button className={value === 'hd' ? 'active' : ''} onClick={() => onChange('hd')}>
-        HD
-      </button>
+    <div className="seg-group">
+      {VIEW_MODES.map((m) => (
+        <button key={m.mode} className={value === m.mode ? 'active' : ''} onClick={() => onChange(m.mode)} title={m.title}>
+          {m.label}
+        </button>
+      ))}
     </div>
+  );
+}
+
+function RefreshButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} title="Fetch new pictures">
+      ↻ Refresh
+    </button>
   );
 }
 
@@ -32,15 +46,19 @@ export function LivePage() {
   const [hideOffline, setHideOffline] = useStoredState('live.hideOffline', '1');
   const [page, setPage] = useState(0);
   const [focus, setFocus] = useState<Channel | null>(null);
-  const [focusQuality, setFocusQuality] = useStoredState('live.focusQuality', 'hd');
-  const [gridQuality, setGridQuality] = useStoredState('live.gridQuality', 'sd');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const deviceList = devices.data ?? [];
   const deviceId = deviceList.find((d) => String(d.id) === storedDevice)?.id ?? deviceList[0]?.id ?? null;
+  // Remembered per device, so a site on a slow link can stay on stills while local ones play video.
+  const [focusMode, setFocusMode] = useStoredState(`live.focusMode.${deviceId}`, 'hd');
+  const [gridMode, setGridMode] = useStoredState(`live.gridMode.${deviceId}`, 'sd');
+  const refresh = () => setRefreshKey((n) => n + 1);
   const channels = useChannels(deviceId);
 
   const list = (channels.data ?? []).filter((c) => hideOffline !== '1' || c.online);
   const perPage = Number(layout);
+  const side = Math.sqrt(perPage);
   const pages = Math.max(1, Math.ceil(list.length / perPage));
   const shown = list.slice(page * perPage, (page + 1) * perPage);
 
@@ -109,14 +127,19 @@ export function LivePage() {
                 {focus.id}. {focus.name}
               </strong>
               <div className="spacer" />
-              <QualityToggle value={focusQuality} onChange={setFocusQuality} />
+              {focusMode === 'stills' && <RefreshButton onClick={refresh} />}
+              <ViewModeToggle value={focusMode} onChange={setFocusMode} />
               <a className="button" href={snapshotUrl(deviceId, focus.id, false)} target="_blank" rel="noreferrer">
                 Snapshot
               </a>
               <button onClick={() => navigate(`/playback?device=${deviceId}&channel=${focus.id}&date=${today()}`)}>Playback</button>
             </div>
             <div className="focus-view">
-              <LiveTile key={`${focus.id}-${focusQuality}`} deviceId={deviceId} channel={focus} quality={focusQuality as Quality} large />
+              {focusMode === 'stills' ? (
+                <SnapshotTile key={focus.id} deviceId={deviceId} channel={focus} refreshKey={refreshKey} large />
+              ) : (
+                <LiveTile key={`${focus.id}-${focusMode}`} deviceId={deviceId} channel={focus} quality={focusMode as 'sd' | 'hd'} large />
+              )}
             </div>
           </>
         ) : (
@@ -129,7 +152,8 @@ export function LivePage() {
                   </button>
                 ))}
               </div>
-              <QualityToggle value={gridQuality} onChange={setGridQuality} />
+              <ViewModeToggle value={gridMode} onChange={setGridMode} />
+              {gridMode === 'stills' && <RefreshButton onClick={refresh} />}
               <div className="spacer" />
               {pages > 1 && (
                 <div className="pager">
@@ -145,11 +169,20 @@ export function LivePage() {
                 </div>
               )}
             </div>
-            {deviceId && (
-              <div className="grid" style={{ gridTemplateColumns: `repeat(${Math.sqrt(perPage)}, minmax(0, 1fr))` }}>
-                {shown.map((c) => (
-                  <LiveTile key={`${deviceId}-${c.id}`} deviceId={deviceId} channel={c} quality={gridQuality as Quality} onOpen={() => c.online && setFocus(c)} />
-                ))}
+            {deviceId && list.length > 0 && (
+              <div className="grid-fit">
+                <div
+                  className="grid"
+                  style={{ gridTemplateColumns: `repeat(${side}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${side}, minmax(0, 1fr))` }}
+                >
+                  {shown.map((c) =>
+                    gridMode === 'stills' ? (
+                      <SnapshotTile key={`${deviceId}-${c.id}`} deviceId={deviceId} channel={c} refreshKey={refreshKey} onOpen={() => c.online && setFocus(c)} />
+                    ) : (
+                      <LiveTile key={`${deviceId}-${c.id}`} deviceId={deviceId} channel={c} quality={gridMode as 'sd' | 'hd'} onOpen={() => c.online && setFocus(c)} />
+                    ),
+                  )}
+                </div>
               </div>
             )}
             {channels.data && list.length === 0 && <div className="empty-state">No channels with a signal on this device.</div>}

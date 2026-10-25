@@ -73,7 +73,14 @@ public class IsapiClient(TailscaleService tailscale)
 
     public async Task<(byte[] Bytes, string ContentType)> GetSnapshotAsync(DeviceConnection c, int channel, bool sub, CancellationToken ct)
     {
-        using var res = await SendAsync(c, HttpMethod.Get, $"/ISAPI/Streaming/channels/{StreamId(channel, sub)}/picture", null, ct);
+        var res = await SendAsync(c, HttpMethod.Get, $"/ISAPI/Streaming/channels/{StreamId(channel, sub)}/picture", null, ct);
+        // Some DVRs only take pictures from the main stream.
+        if (sub && res.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
+        {
+            res.Dispose();
+            res = await SendAsync(c, HttpMethod.Get, $"/ISAPI/Streaming/channels/{StreamId(channel, false)}/picture", null, ct);
+        }
+        using var _ = res;
         if (!res.IsSuccessStatusCode)
             throw new IsapiException($"Snapshot failed: HTTP {(int)res.StatusCode}");
         return (await res.Content.ReadAsByteArrayAsync(ct), res.Content.Headers.ContentType?.MediaType ?? "image/jpeg");

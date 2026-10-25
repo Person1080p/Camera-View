@@ -80,12 +80,13 @@ export function onUnauthorized(handler: () => void) {
   unauthorizedHandler = handler;
 }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+async function send(method: string, url: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
   const res = await fetch(url, {
     method,
     credentials: 'same-origin',
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
 
   if (res.status === 401 && !url.startsWith('/api/auth/login')) unauthorizedHandler?.();
@@ -100,13 +101,18 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     }
     throw new ApiError(res.status, message);
   }
+  return res;
+}
 
-  const text = await res.text();
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const text = await (await send(method, url, body)).text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
   get: <T>(url: string) => request<T>('GET', url),
+  /** For images and other binary responses, with the same error handling as JSON calls. */
+  blob: async (url: string, signal?: AbortSignal) => (await send('GET', url, undefined, signal)).blob(),
   post: <T>(url: string, body?: unknown) => request<T>('POST', url, body ?? {}),
   put: <T>(url: string, body: unknown) => request<T>('PUT', url, body),
   del: (url: string) => request<void>('DELETE', url),

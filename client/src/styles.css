@@ -499,6 +499,10 @@ legend {
   opacity: 0;
   transition: opacity 0.15s;
 }
+.tile-actions {
+  display: flex;
+  gap: 4px;
+}
 .tile:hover .tile-btn {
   opacity: 1;
 }
@@ -513,7 +517,23 @@ legend {
 }
 .focus-view {
   flex: 1;
-  min-height: 300px;
+  min-height: 0;
+}
+/* Sizes the live grid to the space left under the toolbar: as large as fits while keeping 16:9 tiles. */
+.grid-fit {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: start center;
+}
+.grid-fit .grid {
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+}
+.grid-fit .tile {
+  aspect-ratio: auto;
+  min-height: 0;
 }
 
 /* ---------- playback ---------- */
@@ -710,6 +730,23 @@ td.actions > * + * {
   }
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)) !important;
+    grid-template-rows: none !important;
+  }
+  /* Stacked layout on small screens: the page scrolls instead of shrinking the tiles. */
+  .grid-fit {
+    container-type: normal;
+    display: block;
+  }
+  .grid-fit .grid {
+    width: auto;
+    aspect-ratio: auto;
+  }
+  .grid-fit .tile {
+    aspect-ratio: 16 / 9;
+  }
+  .focus-view {
+    flex: none;
+    aspect-ratio: 16 / 9;
   }
   .player {
     min-height: 220px;

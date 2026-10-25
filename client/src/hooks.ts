@@ -37,16 +37,19 @@ export const useChannels = (deviceId: number | null) =>
 
 /** A string remembered in localStorage (per browser), e.g. the last selected device. */
 export function useStoredState(key: string, initial: string): [string, (v: string) => void] {
-  const [value, setValue] = useState(() => {
+  const read = () => {
     try {
       return localStorage.getItem(key) ?? initial;
     } catch {
       return initial;
     }
-  });
+  };
+  const [state, setState] = useState(() => ({ key, value: read() }));
+  // The key may change (e.g. per-device settings); the stored value for the new key is read straight away.
+  const value = state.key === key ? state.value : read();
   const set = useCallback(
     (v: string) => {
-      setValue(v);
+      setState({ key, value: v });
       try {
         localStorage.setItem(key, v);
       } catch {
