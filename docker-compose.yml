@@ -1,0 +1,20 @@
+# Camera Viewer in Docker: docker compose up -d --build, then open http://<host>:5080 (first login admin / admin).
+services:
+  cameraviewer:
+    build: .
+    image: cameraviewer:latest
+    restart: unless-stopped
+    # Reaps the ffmpeg processes the server starts.
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - "5080:5080"
+    environment:
+      # "Sync NVR clock to this server" uses this time zone.
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Database, encryption keys, Tailscale node identity and exports. Back it up as one.
+      - data:/data
+
+volumes:
+  data:

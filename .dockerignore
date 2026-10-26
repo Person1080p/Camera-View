@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+.vs/
+server/CameraViewer.Api/wwwroot/
+server/CameraViewer.Api/App_Data/
+server/CameraViewer.Api/appsettings.Local.json
+tailscale/bin/

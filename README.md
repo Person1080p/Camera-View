@@ -94,6 +94,20 @@ On first start the app creates:
 - The devices listed in `server/CameraViewer.Api/appsettings.Local.json`.
   Device passwords are encrypted into the database, so after the first run you can delete the password from that file.
 
+### Running in Docker
+
+```bash
+TZ=America/Los_Angeles docker compose up -d --build   # http://<host>:5080
+```
+
+The image builds the UI and the Tailscale helper itself and includes ffmpeg, so the host only needs Docker.
+
+- **Data.** The database, keys, Tailscale node and exports live in `/data` (the `data` volume). To move an existing
+  install, copy its `App_Data` contents (except `instance.lock`) into `/data`, owned by uid 1654 (the image's `app` user).
+- **Device seeding.** `appsettings.Local.json` is never copied into the image; add devices on the Devices page, or
+  mount the file at `/app/appsettings.Local.json`.
+- **Time zone.** Set `TZ` for "Sync NVR clock to this server". It defaults to UTC.
+
 ### Development
 
 Run the API and the Vite dev server separately to get hot reload:
