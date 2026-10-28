@@ -137,8 +137,8 @@ Browser (React + hls.js)  ──HTTP──>  ASP.NET Core  ──ISAPI (HTTP, di
 ## Remote sites over Tailscale
 
 Camera Viewer can join your tailnet as its own machine, so it reaches NVRs at other sites without Tailscale being
-installed on the server. This works on Windows and Linux and needs no admin rights or network adapter. See
-[docs/remote-sites.md](docs/remote-sites.md) for how the sites' routers are set up.
+installed on the server. This works on Windows and Linux and needs no admin rights or network adapter. Each site's
+router must advertise its LAN as a Tailscale subnet route.
 
 1. **Tailscale** page → tick *Run Camera Viewer's Tailscale node* → Save.
 2. Click **Open Tailscale sign-in** and log in with the account that owns the sites' routers, or paste an auth key.
@@ -168,8 +168,6 @@ Things to know:
   be reached as they are. Either renumber one site's LAN first, or:
   - give that site's router a second subnet and advertise only that one
   - map the NVR into it, so 192.168.21.138 on the tailnet reaches 192.168.20.138 on the LAN
-
-  See [docs/remote-sites.md](docs/remote-sites.md).
 - **The tailnet's access rules apply** to this machine like any other.
 - **Not tested end to end yet.** The app's side (status, sign-in, and video and API traffic through the proxy and
   forwarder) was tested against a local NVR with a stand-in for the Tailscale node. The real node reaches the sign-in
